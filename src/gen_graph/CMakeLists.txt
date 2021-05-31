@@ -14,6 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   tf2
   tf2_ros
+  apriltag_ros
 )
 
 ## System dependencies are found with CMake's conventions
@@ -207,6 +208,6 @@ include_directories(
 
 ## Add folders to be run by python nosetests
 # catkin_add_nosetests(test)
-
 add_executable(gen_graph_node src/gen_graph_node.cpp)
 target_link_libraries(gen_graph_node ${catkin_LIBRARIES})
+add_dependencies(gen_graph_node apriltag_ros_generate_messages_cpp)
