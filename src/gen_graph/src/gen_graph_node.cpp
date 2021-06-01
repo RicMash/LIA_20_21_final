@@ -15,7 +15,6 @@ int old_id=1000;
 geometry_msgs::TransformStamped transformStamped;
 
 void odometryCallback_(const nav_msgs::Odometry::ConstPtr msg) {
-  
   tf2::Quaternion q(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
   tf2::Matrix3x3 m(q);
   double roll, pitch, yaw;
