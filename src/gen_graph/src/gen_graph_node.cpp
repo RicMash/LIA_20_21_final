@@ -1,17 +1,23 @@
 #include <ros/ros.h>
 #include <tf2_ros/transform_listener.h>
 #include <geometry_msgs/TransformStamped.h>
+#include <geometry_msgs/PointStamped.h>
 #include <nav_msgs/Odometry.h>
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <apriltag_ros/AprilTagDetectionArray.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.h>
+#include <iostream>
+#include <fstream>
 #include <set>
 #include <math.h>
 
 std::set<int> detected_tags;
 std::vector<float> cur_pos(3,0);
-std::vector<float> old_pos(3,0);
+//not instantiated so we know the first time must be equal to cur_pos
+std::vector<float> old_pos;
 int old_id=1000;
+std::ofstream output;
 geometry_msgs::TransformStamped transformStamped;
 
 void odometryCallback_(const nav_msgs::Odometry::ConstPtr msg) {
@@ -25,18 +31,19 @@ void odometryCallback_(const nav_msgs::Odometry::ConstPtr msg) {
   cur_pos[2]=yaw;//yaw
 
   //first time in callback
-  if(old_pos[0]==0 && old_pos[1]==0 && old_pos[2]==0){
+  if(old_pos.empty()){
+    ROS_INFO("entrato");
     old_pos=cur_pos;
-    old_id=1000;
-    ROS_INFO("VERTEX_SE2 %d %f %f %f",old_id, cur_pos[0],cur_pos[1],cur_pos[2]);
+    output << "VERTEX_SE2 " << old_id << " " << cur_pos[0] << " " << cur_pos[1] << " " << cur_pos[2] << "\n";
+    ROS_INFO("%f",old_pos[0]);
   }
   else{
     float distance_position= sqrt(pow(cur_pos[0]-old_pos[0],2)+pow(cur_pos[1]-old_pos[1],2));
     float distance_orientation= cur_pos[2]-old_pos[2];
     if(distance_position >= 0.1 || distance_orientation >= 0.5){
       old_id++;
-      ROS_INFO("VERTEX_SE2 %d %f %f %f",old_id, cur_pos[0],cur_pos[1],cur_pos[2]);
-      ROS_INFO("EDGE_SE2 %d %d %f %f %f",old_id-1, old_id, cur_pos[0]-old_pos[0],cur_pos[1]-old_pos[1],cur_pos[2]-old_pos[2]);
+      output << "VERTEX_SE2 " << old_id << " " << cur_pos[0] << " " << cur_pos[1] << " " << cur_pos[2] << "\n";
+      output << "EDGE_SE2 " << old_id-1 << " " << old_id << " " << cur_pos[0]-old_pos[0] << " " << cur_pos[1]-old_pos[1] << " " << cur_pos[2]-old_pos[2] << "\n";
       old_pos=cur_pos;
     }
   }
@@ -52,18 +59,25 @@ void tagDetectedCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr ms
       //and sum it to the relative pose of the detected tag (to get the position in relation to the last node printed)
       float rel_tag_pos_x= offset_x + msg->detections[i].pose.pose.pose.position.x;
       float rel_tag_pos_y= offset_y + msg->detections[i].pose.pose.pose.position.y;
-      ROS_INFO("EDGE_SE2_XY %d %d %f %f", old_id, current_tag_id, rel_tag_pos_x, rel_tag_pos_y); 
+      output << "EDGE_SE2_XY " << old_id << " " << current_tag_id << " " <<  rel_tag_pos_x << " " << rel_tag_pos_y << "\n";
       if(detected_tags.find(current_tag_id)==detected_tags.end()){
         detected_tags.insert(current_tag_id);
         tf2_ros::Buffer tfBuffer;
         tf2_ros::TransformListener tfListener(tfBuffer);
-        try{
-          tfBuffer.canTransform("odom", "fisheye_rect",ros::Time(0), ros::Duration(3.0));
-          //try to transforme even if not possible to get the ROS_WARN
-          transformStamped = tfBuffer.lookupTransform("odom", "fisheye_rect",ros::Time(0));
-          float xw = msg->detections[i].pose.pose.pose.position.x + transformStamped.transform.translation.x;
-          float yw = msg->detections[i].pose.pose.pose.position.y + transformStamped.transform.translation.y;
-          ROS_INFO("VERTEX_XY %d %f %f", current_tag_id, xw ,yw);
+        try{          
+          geometry_msgs::PointStamped tag_current_view, tag_world_view;
+          
+          //create the PointStamped that has to be transformed
+          tag_current_view.header.frame_id="fisheye_rect";
+          tag_current_view.header.stamp=ros::Time(0);
+          tag_current_view.point.x=msg->detections[i].pose.pose.pose.position.x;
+          tag_current_view.point.y=msg->detections[i].pose.pose.pose.position.y;
+          tag_current_view.point.z=0;
+
+          //transform the point
+          tag_world_view= tfBuffer.transform(tag_current_view,"odom",ros::Duration(3.0));
+          
+          output << "VERTEX_XY " << current_tag_id << " " << tag_world_view.point.x << " " << tag_world_view.point.y << "\n";
         }
         catch (tf2::TransformException &ex) {
           ROS_WARN("%s",ex.what());
@@ -78,18 +92,16 @@ int main(int argc, char** argv){
   ros::init(argc, argv, "gen_graph_node");
 
   ros::NodeHandle n;
-
+  output.open("result.g2o");
   ros::Subscriber sub_tag = n.subscribe("tag_detections", 1000, tagDetectedCallback);
   ros::Subscriber sub = n.subscribe("odom", 1000, odometryCallback_);
 
   tf2_ros::Buffer tfBuffer;
   tf2_ros::TransformListener tfListener(tfBuffer);
 
-  ros::Rate rate(10.0);
   while (n.ok()){
     ros::spinOnce();
-
-    rate.sleep();
   }
+  output.close();
   return 0;
 };
