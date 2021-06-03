@@ -32,10 +32,8 @@ void odometryCallback_(const nav_msgs::Odometry::ConstPtr msg) {
 
   //first time in callback
   if(old_pos.empty()){
-    ROS_INFO("entrato");
     old_pos=cur_pos;
     output << "VERTEX_SE2 " << old_id << " " << cur_pos[0] << " " << cur_pos[1] << " " << cur_pos[2] << "\n";
-    ROS_INFO("%f",old_pos[0]);
   }
   else{
     float distance_position= sqrt(pow(cur_pos[0]-old_pos[0],2)+pow(cur_pos[1]-old_pos[1],2));
@@ -53,31 +51,36 @@ void tagDetectedCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr ms
   for(int i=0;i<msg->detections.size();i++){
     for(int j=0;j<msg->detections[i].id.size();j++){  
       int current_tag_id = msg->detections[i].id[j];
-      //get offset from old position (last node created)
-      float offset_x=cur_pos[0]-old_pos[0];
-      float offset_y=cur_pos[1]-old_pos[1];
-      //and sum it to the relative pose of the detected tag (to get the position in relation to the last node printed)
-      float rel_tag_pos_x= offset_x + msg->detections[i].pose.pose.pose.position.x;
-      float rel_tag_pos_y= offset_y + msg->detections[i].pose.pose.pose.position.y;
-      output << "EDGE_SE2_XY " << old_id << " " << current_tag_id << " " <<  rel_tag_pos_x << " " << rel_tag_pos_y << "\n";
+
+      //must take the position with reference to the old position, not the current, because in output we won't have the current position, just the old one
+      tf2::Vector3 tag_current_view_p = tf2::Vector3(msg->detections[i].pose.pose.pose.position.x, msg->detections[i].pose.pose.pose.position.y, msg->detections[i].pose.pose.pose.position.z);
+      tf2::Vector3 translation = tf2::Vector3(cur_pos[0]-old_pos[0], cur_pos[1]-old_pos[1], 0);
+      tf2::Quaternion rotation; 
+      rotation.setRPY(0,0,cur_pos[2]-old_pos[2]);
+      tf2::Transform tf_offset = tf2::Transform(rotation, translation);
+      
+      tf2::Vector3 tag_old_view_p = tf_offset * tag_current_view_p;
+      
+      output << "EDGE_SE2_XY " << old_id << " " << current_tag_id << " " <<  tag_old_view_p.x() << " " << tag_old_view_p.y() << "\n";
+      
       if(detected_tags.find(current_tag_id)==detected_tags.end()){
         detected_tags.insert(current_tag_id);
         tf2_ros::Buffer tfBuffer;
         tf2_ros::TransformListener tfListener(tfBuffer);
         try{          
-          geometry_msgs::PointStamped tag_current_view, tag_world_view;
+          geometry_msgs::PointStamped tag_current_view_ps, tag_world_view_ps;
           
           //create the PointStamped that has to be transformed
-          tag_current_view.header.frame_id="fisheye_rect";
-          tag_current_view.header.stamp=ros::Time(0);
-          tag_current_view.point.x=msg->detections[i].pose.pose.pose.position.x;
-          tag_current_view.point.y=msg->detections[i].pose.pose.pose.position.y;
-          tag_current_view.point.z=0;
+          tag_current_view_ps.header.frame_id="fisheye_rect";
+          tag_current_view_ps.header.stamp=ros::Time(0);
+          tag_current_view_ps.point.x=msg->detections[i].pose.pose.pose.position.x;
+          tag_current_view_ps.point.y=msg->detections[i].pose.pose.pose.position.y;
+          tag_current_view_ps.point.z=0;
 
           //transform the point
-          tag_world_view= tfBuffer.transform(tag_current_view,"odom",ros::Duration(3.0));
+          tag_world_view_ps= tfBuffer.transform(tag_current_view_ps,"odom",ros::Duration(3.0));
           
-          output << "VERTEX_XY " << current_tag_id << " " << tag_world_view.point.x << " " << tag_world_view.point.y << "\n";
+          output << "VERTEX_XY " << current_tag_id << " " << tag_world_view_ps.point.x << " " << tag_world_view_ps.point.y << "\n";
         }
         catch (tf2::TransformException &ex) {
           ROS_WARN("%s",ex.what());
