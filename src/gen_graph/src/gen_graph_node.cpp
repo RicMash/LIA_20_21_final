@@ -13,6 +13,7 @@
 #include <set>
 #include <math.h>
 
+geometry_msgs::TransformStamped transformStamped;
 std::set<int> detected_tags;
 std::vector<float> cur_pos(3,0);
 //not instantiated so we know the first time must be equal to cur_pos
@@ -46,7 +47,6 @@ void odometryCallback_(const nav_msgs::Odometry::ConstPtr msg) {
 }
 
 void tagDetectedCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr msg) {
-  geometry_msgs::TransformStamped transformStamped;
   for(int i=0;i<msg->detections.size();i++){
     for(int j=0;j<msg->detections[i].id.size();j++){  
       int current_tag_id = msg->detections[i].id[j];
@@ -91,8 +91,9 @@ void tagDetectedCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr ms
 
 void mySigintHandler(int sig) //exec g2o with results on close
 {
-  char* const argv[] = {"/home/ricmash/d/LIA_20_21_final/result.g2o", nullptr};
+  char* const argv[] = {"g2o_viewer","/home/ricmash/d/LIA_20_21_final/result.g2o", nullptr};
   execvp("/home/ricmash/d/g2o-master/bin/g2o_viewer",argv);
+  output.close();
   ros::shutdown();
 }
 
@@ -109,8 +110,6 @@ int main(int argc, char** argv){
   signal(SIGINT, mySigintHandler);
 
   ros::spin();
-
-  output.close();
 
   return 0;
 };
