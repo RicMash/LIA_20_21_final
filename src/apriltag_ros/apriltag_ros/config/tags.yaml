@@ -19,17 +19,17 @@
 #   ]
 standalone_tags:
   [
-          {id: 15, size: 1.0},
-          {id: 299, size: 1.0},
-          {id: 572, size: 1.0},
-          {id: 389, size: 1.0},
           {id: 259, size: 1.0},
-          {id: 40, size: 1.0},
+          {id: 15, size: 1.0},
+          {id: 572, size: 1.0},
           {id: 449, size: 1.0},
-          {id: 413, size: 1.0},
+          {id: 40, size: 1.0},
           {id: 39, size: 1.0},
+          {id: 413, size: 1.0},
+          {id: 299, size: 1.0},
           {id: 380, size: 1.0},
           {id: 223, size: 1.0},
+          {id: 389, size: 1.0},
           {id: 6, size: 1.0}
   ]
 # ## Tag bundle definitions
