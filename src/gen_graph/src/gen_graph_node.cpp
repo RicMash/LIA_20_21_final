@@ -20,13 +20,12 @@ std::vector<float> cur_pos(3,0);
 std::vector<float> old_pos;
 int old_id;
 std::ofstream output;
-
+/* std::string g2o_path;*/
 void odometryCallback(const nav_msgs::Odometry::ConstPtr msg) {
   tf2::Quaternion q(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
   tf2::Matrix3x3 m(q);
   double roll, pitch, yaw;
   m.getRPY(roll, pitch, yaw);
-
   cur_pos = {(float)msg->pose.pose.position.x, (float)msg->pose.pose.position.y, (float)yaw};
 
   //first time in callback
@@ -89,24 +88,26 @@ void tagDetectedCallback(const apriltag_ros::AprilTagDetectionArray::ConstPtr ms
   }
 }
 
-void mySigintHandler(int sig) //exec g2o with results on close
+/* void mySigintHandler(int sig) //exec g2o with results on close
 {
-  char* const argv[] = {"g2o_viewer","/home/ricmash/d/LIA_20_21_final/result.g2o", nullptr};
-  execvp("/home/ricmash/d/g2o-master/bin/g2o_viewer",argv);
+  g2o_path.append("/bin/g2o_viewer");
+  char* const argv[] = {"g2o_viewer","result.g2o",nullptr};
+  execvp(g2o_path.c_str(),argv);
   ros::shutdown();
-}
+} */
 
 
-int main(int argc, char** argv){
+int main(int argc, char *argv[]){
   ros::init(argc, argv, "gen_graph_node");
 
-  ros::NodeHandle n;
+  ros::NodeHandle n/* ("~") */;
   old_id=1000;
   output.open("result.g2o");
   ros::Subscriber sub_tag = n.subscribe("tag_detections", 1000, tagDetectedCallback);
   ros::Subscriber sub = n.subscribe("odom", 1000, odometryCallback);
-
-  signal(SIGINT, mySigintHandler);
+  /* if(n.getParam("g2o", g2o_path)){
+    signal(SIGINT, mySigintHandler);
+  } */
 
   ros::spin();
 
